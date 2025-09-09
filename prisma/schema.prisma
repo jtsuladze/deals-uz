@@ -1,43 +1,168 @@
-de// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Deals.uz Marketplace Database Schema
+// SQLite database with Prisma ORM
 
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and profiles
 model User {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  id        String   @id @default(cuid())
   email     String   @unique
   name      String?
+  phone     String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  listings  Listing[]
+  messages  Message[]
+  favorites Favorite[]
+  reviews   Review[]
+
+  @@map("users")
 }
 
-model Item {
-  id          String   @id @map("_id") @default(auto()) @db.ObjectId
-  title_en    String
-  title_ru    String
-  title_uz    String
+// Main listing model for marketplace items
+model Listing {
+  id           String      @id @default(cuid())
+  title_en     String
+  title_ru     String?
+  title_uz     String?
   description_en String
-  description_ru String
-  description_uz String
-  price       Float
-  image       String?
-  sellerId    String
+  description_ru String?
+  description_uz String?
+  price        Float
+  currency     String      @default("UZS")
+  condition    Condition   @default(NEW)
+  status       ListingStatus @default(ACTIVE)
+  location     String
+  latitude     Float?
+  longitude    Float?
+  views        Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Foreign keys
+  userId       String
+  categoryId   String
+
+  // Relations
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     Category    @relation(fields: [categoryId], references: [id])
+  images       ListingImage[]
+  messages     Message[]
+  favorites    Favorite[]
+  reviews      Review[]
+
+  @@map("listings")
 }
 
+// Images for listings
+model ListingImage {
+  id        String  @id @default(cuid())
+  url       String
+  alt       String?
+  order     Int     @default(0)
+  listingId String
+
+  // Relations
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("listing_images")
+}
+
+// Categories for organizing listings
+model Category {
+  id       String @id @default(cuid())
+  name_en  String
+  name_ru  String?
+  name_uz  String?
+  slug     String @unique
+  icon     String?
+  parentId String?
+
+  // Relations
+  parent   Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  listings Listing[]
+
+  @@map("categories")
+}
+
+// Messaging system between users
 model Message {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
-  itemId    String
-  from      String
-  to        String
-  text      String
-  timestamp DateTime @default(now())
+  id        String   @id @default(cuid())
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  senderId  String
+  listingId String
+
+  // Relations
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
 }
 
-datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+// User favorites/wishlist
+model Favorite {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  userId    String
+  listingId String
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  // Ensure unique user-listing combination
+  @@unique([userId, listingId])
+  @@map("favorites")
+}
+
+// Review system for users and listings
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  comment   String?
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  reviewerId String
+  listingId  String
+
+  // Relations
+  reviewer   User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+// Enums
+enum Condition {
+  NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  EXPIRED
+  DELETED
 }

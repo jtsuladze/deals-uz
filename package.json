@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "description": "A modern, multilingual marketplace platform for Uzbekistan",
   "private": true,
-  "keywords": ["marketplace", "uzbekistan", "nextjs", "typescript", "multilingual", "ecommerce"],
+  "keywords": [
+    "marketplace",
+    "uzbekistan",
+    "nextjs",
+    "typescript",
+    "multilingual",
+    "ecommerce"
+  ],
   "author": "Your Name <your.email@example.com>",
   "license": "MIT",
   "repository": {
@@ -15,7 +22,13 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",
@@ -36,6 +49,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "tailwindcss": "^4",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }
