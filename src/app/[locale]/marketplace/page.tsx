@@ -2,11 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { dataStore } from '@/stores/dataStore';
 import { Post, SearchFilters } from '@/types';
 import { categories, getCategoryName, getSubcategoryName } from '@/data/categories';
 import Link from 'next/link';
 import Image from 'next/image';
+
+// Database listing type (matches Prisma schema)
+interface DatabaseListing {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  categoryId: string;
+  condition: string;
+  location: string;
+  userId: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  images: { id: string; url: string; }[];
+  category: { id: string; name_en: string; name_ru: string; name_uz: string; };
+  user: { id: string; name: string; };
+}
 
 export default function MarketplacePage() {
   const params = useParams();
@@ -24,14 +41,91 @@ export default function MarketplacePage() {
     loadPosts();
   }, [searchFilters]);
 
-  const loadPosts = () => {
+  const loadPosts = async () => {
     setIsLoading(true);
-    const filtered = dataStore.searchPosts(searchFilters);
-    const featured = dataStore.getFeaturedPosts();
-    
-    setPosts(filtered);
-    setFeaturedPosts(featured.slice(0, 4)); // Show top 4 featured posts
-    setIsLoading(false);
+    try {
+      // Fetch listings from database API
+      const response = await fetch('/api/listings');
+      if (!response.ok) throw new Error('Failed to fetch listings');
+      
+      const dbListings: DatabaseListing[] = await response.json();
+      
+      // Convert database listings to Post format
+      const convertedPosts: Post[] = dbListings.map(listing => ({
+        id: listing.id,
+        title: listing.title,
+        description: listing.description,
+        price: listing.price,
+        category: listing.categoryId,
+        condition: listing.condition as 'new' | 'like_new' | 'good' | 'fair' | 'poor',
+        location: listing.location,
+        userId: listing.userId,
+        userName: listing.user.name,
+        userEmail: '', // Not available from current API
+        userPhone: '', // Not available from current API
+        images: listing.images.map(img => img.url),
+        tags: [], // Not in database yet
+        createdAt: new Date(listing.createdAt),
+        updatedAt: new Date(listing.updatedAt),
+        type: 'item' as const, // Default for now
+        isFeatured: false, // Can be added to schema later
+        views: 0, // Can be added to schema later
+        status: listing.status as 'active' | 'pending' | 'rejected' | 'sold' | 'archived',
+        favorites: [], // Not loaded in this API call
+        contactPreference: 'both' as const // Default
+      }));
+
+      // Apply client-side filtering based on searchFilters
+      let filtered = convertedPosts;
+      
+      if (searchFilters.category) {
+        filtered = filtered.filter(post => post.category === searchFilters.category);
+      }
+      
+      if (searchFilters.location) {
+        filtered = filtered.filter(post => 
+          post.location.toLowerCase().includes(searchFilters.location!.toLowerCase())
+        );
+      }
+      
+      if (searchFilters.minPrice !== undefined) {
+        filtered = filtered.filter(post => post.price >= searchFilters.minPrice!);
+      }
+      
+      if (searchFilters.maxPrice !== undefined) {
+        filtered = filtered.filter(post => post.price <= searchFilters.maxPrice!);
+      }
+      
+      if (searchFilters.condition) {
+        filtered = filtered.filter(post => post.condition === searchFilters.condition);
+      }
+
+      // Apply sorting
+      switch (searchFilters.sortBy) {
+        case 'newest':
+          filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          break;
+        case 'oldest':
+          filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          break;
+        case 'price_low':
+          filtered.sort((a, b) => a.price - b.price);
+          break;
+        case 'price_high':
+          filtered.sort((a, b) => b.price - a.price);
+          break;
+      }
+      
+      setPosts(filtered);
+      setFeaturedPosts(filtered.slice(0, 4)); // Show first 4 as featured for now
+      
+    } catch (error) {
+      console.error('Error loading posts:', error);
+      setPosts([]);
+      setFeaturedPosts([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFilterChange = (key: keyof SearchFilters, value: any) => {

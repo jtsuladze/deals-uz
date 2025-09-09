@@ -3,7 +3,6 @@
 import { t } from '../../i18n';
 import React, { useState, useEffect } from 'react';
 import type { Locale } from '../../i18n';
-import { dataStore } from '../../stores/dataStore';
 import { userStore, User } from '../../userStore';
 import { categories, getCategoryName } from '../../data/categories';
 import LocationPicker from '../components/LocationPicker';
@@ -193,7 +192,7 @@ export default function PostItem({ locale }: { locale: Locale }) {
     setImageUrl(newPreviews.length > 0 ? newPreviews[0] : '');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     console.log('=== FORM SUBMISSION STARTED ===');
@@ -238,31 +237,36 @@ export default function PostItem({ locale }: { locale: Locale }) {
         userEmail: user?.email
       });
       
-      const newPost = dataStore.addPost({
+      // Submit to database API
+      const listingData = {
         title,
         description,
         price: finalPrice,
-        category,
-        subcategory: undefined,
-        type,
+        categoryId: category,
         condition: condition,
         location,
-        coordinates: undefined,
         userId: user.id || user.email,
-        userName: user.name,
-        userEmail: user.email,
-        userPhone: user.phone || '',
-        images: imagePreviews.length > 0 ? imagePreviews : [],
-        tags: [],
-        status: 'active',
-        isFeatured: false,
-        contactPreference: 'both'
+        status: 'ACTIVE',
+        images: imagePreviews.length > 0 ? imagePreviews.map(url => ({ url })) : []
+      };
+
+      console.log('Submitting to API:', listingData);
+
+      const response = await fetch('/api/listings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(listingData),
       });
-      
-      console.log('✅ Post created successfully:', newPost);
+
+      if (!response.ok) {
+        throw new Error(`Failed to create listing: ${response.statusText}`);
+      }
+
+      const newPost = await response.json();
+      console.log('✅ Post created successfully in database:', newPost);
       console.log('✅ Post ID:', newPost.id);
-      console.log('✅ DataStore now has', dataStore.getAllPosts().length, 'total posts');
-      console.log('✅ DataStore Instance ID:', dataStore.instanceId);
       
       // Reset form
       setTitle('');
